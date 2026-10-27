@@ -9,6 +9,8 @@ const REGION = 'us-east4-eqdc4a';
 const SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
 // One page holds every sandbox an environment can run: https://docs.railway.com/sandboxes#sandboxes-per-environment
 const SANDBOX_LIST_PAGE_SIZE = 100;
+const RAILWAY_REQUEST_TIMEOUT_MS = 30_000;
+const DAEMON_START_TIMEOUT_MS = 30_000;
 
 // Resolved by Railway when the sandbox is created, so secret values never pass through this process.
 const SANDBOX_ENV = {
@@ -41,6 +43,7 @@ export async function bootRuntimeSandbox({ config, daemonId }: RuntimeSandboxPar
   // Sandbox.create builds the template in the region it is given, so the build and the sandbox share it.
   const sandbox = await Sandbox.create(multicaRuntimeTemplate(), {
     ...config,
+    fetch: fetchWithDeadline,
     region: REGION,
     idleTimeoutMinutes: SANDBOX_IDLE_TIMEOUT_MINUTES,
     env: SANDBOX_ENV
@@ -48,7 +51,7 @@ export async function bootRuntimeSandbox({ config, daemonId }: RuntimeSandboxPar
   const createMs = Math.round(performance.now() - createStartedAt);
 
   try {
-    const sessionName = await sandbox.exec(startDaemonCommand(daemonId)).detach();
+    const sessionName = await startDaemon({ sandbox, daemonId });
     return { sandboxId: sandbox.id, region: sandbox.region, sessionName, createMs };
   } catch (error) {
     await sandbox.destroy();
@@ -56,9 +59,27 @@ export async function bootRuntimeSandbox({ config, daemonId }: RuntimeSandboxPar
   }
 }
 
+type StartDaemonParams = {
+  sandbox: Sandbox;
+  daemonId: string;
+};
+
+// The SDK terminates a command when its signal aborts, so the timer stops at detach and the deadline bounds only the start.
+async function startDaemon({ sandbox, daemonId }: StartDaemonParams): Promise<string> {
+  const deadline = new AbortController();
+  const timer = setTimeout(() => {
+    deadline.abort(new Error(`The daemon exec did not start within ${DAEMON_START_TIMEOUT_MS} ms`));
+  }, DAEMON_START_TIMEOUT_MS);
+  try {
+    return await sandbox.exec(startDaemonCommand(daemonId), { signal: deadline.signal }).detach();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // A sandbox belongs to the dispatcher only when one of its sessions started the daemon with this daemon ID.
 export async function listRuntimeSandboxes({ config, daemonId }: RuntimeSandboxParams): Promise<RuntimeSandbox[]> {
-  const sandboxes = await Sandbox.list({ ...config, first: SANDBOX_LIST_PAGE_SIZE });
+  const sandboxes = await Sandbox.list({ ...config, fetch: fetchWithDeadline, first: SANDBOX_LIST_PAGE_SIZE });
   // ceiling: the SDK returns one page and drops its cursor, and destroyed sandboxes stay in the list. Railway lists newest first, so a running sandbox is on the page unless 100 newer sandboxes exist. Debt — page with the cursor once the SDK returns it.
   let previousCreatedAtMs = Number.POSITIVE_INFINITY;
   for (const info of sandboxes) {
@@ -75,7 +96,7 @@ export async function listRuntimeSandboxes({ config, daemonId }: RuntimeSandboxP
     if (info.status !== 'RUNNING') {
       continue;
     }
-    const sandbox = await Sandbox.connect(info.id, config);
+    const sandbox = await Sandbox.connect(info.id, { ...config, fetch: fetchWithDeadline });
     if (await hasDaemonSession({ sandbox, daemonCommand })) {
       runtimeSandboxes.push({ id: info.id, createdAtMs: Date.parse(info.createdAt) });
     }
@@ -121,6 +142,15 @@ type DestroyRuntimeSandboxParams = {
 };
 
 export async function destroyRuntimeSandbox({ config, sandboxId }: DestroyRuntimeSandboxParams): Promise<void> {
-  const sandbox = await Sandbox.connect(sandboxId, config);
+  const sandbox = await Sandbox.connect(sandboxId, { ...config, fetch: fetchWithDeadline });
   await sandbox.destroy();
+}
+
+// The SDK bounds its readiness polls but no single request. A sandbox keeps this fetch for its sessions, exec, and destroy calls.
+function fetchWithDeadline(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const signals = [AbortSignal.timeout(RAILWAY_REQUEST_TIMEOUT_MS)];
+  if (init?.signal) {
+    signals.push(init.signal);
+  }
+  return fetch(input, { ...init, signal: AbortSignal.any(signals) });
 }
