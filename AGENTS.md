@@ -10,6 +10,7 @@ multica-sandboxes runs a Multica agent runtime in a Railway sandbox only while M
 - A merged change to `src/runtime-template.ts` reaches sandboxes only after someone rebuilds the checkpoint. Say so in the PR description.
 - Keep lifecycle policy in the pure `decide` function in `src/lifecycle.ts`, and add a failing case to its tests before you change it.
 - Drive sandboxes with the `railway` SDK. Pass long-lived credentials into a sandbox as Railway variable references in its `env`, never as values, so they never pass through this process.
+- Every agent in a sandbox can read every credential in it, so give a sandbox only credentials scoped to what agents may do. The Multica token belongs to a dedicated member user, as `README.md` describes under "Multica access".
 - The GitHub installation token is the one secret the dispatcher writes into a sandbox. The dispatcher mints it from the GitHub App key it holds, so the key never enters the sandbox and the sandbox holds only a token that expires within the hour. Write it through the sandbox file API. Never put a secret in an exec command, because Railway records every exec command in the sandbox sessions.
 - Node runs the TypeScript in `src` directly through its built-in type stripping, so there is no build step and no `dist`.
 

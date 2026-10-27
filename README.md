@@ -13,7 +13,7 @@ The dispatcher runs as the `multica-sandboxes` service in the Railway project an
 | Variable                     | Value                                                                         |
 | ---------------------------- | ----------------------------------------------------------------------------- |
 | `MULTICA_SERVER_URL`         | Multica origin, e.g. `https://projects.lucrise.com`                           |
-| `MULTICA_TOKEN`              | Multica personal access token of the runtime owner                            |
+| `MULTICA_TOKEN`              | Personal access token of the dedicated Multica user (see Multica access)      |
 | `MULTICA_DAEMON_ID`          | Fixed UUID, so every sandbox registers as the same Multica runtime            |
 | `CLAUDE_CODE_OAUTH_TOKEN`    | Output of `claude setup-token` for the Claude subscription that pays for runs |
 | `RAILWAY_API_TOKEN`          | Railway account or workspace token, not a project token                       |
@@ -59,6 +59,23 @@ railway run --service multica-sandboxes -- npm run build:checkpoint -- ~/Code/Pe
 ```
 
 The build boots a sandbox from the template, installs the profile, and checks the result. It saves the checkpoint only when every check passes. The new checkpoint replaces the old one, and the next sandbox boots from it.
+
+## Multica access
+
+The agents in a sandbox run as the same user as the daemon, so they can read the daemon's Multica token. That token therefore belongs to a dedicated Multica user, never to a person:
+
+- The user is a `member` of each workspace whose agents run here, and of no other workspace.
+- The user owns the sandbox runtimes. They stay private and are shared with the owners of the agents that run on them.
+- Each sandbox agent lets the user invoke it, so the dispatcher can see the agent's runs.
+
+Multica refuses to register a daemon ID whose runtimes another user owns, so a new token owner also needs a new `MULTICA_DAEMON_ID`. A new daemon ID starts with no runtimes, and the dispatcher boots only for runs on existing runtimes. To move the runtime to a new token owner:
+
+1. Wait until no runtime sandbox runs. The dispatcher finds its sandboxes by daemon ID, so it loses track of a sandbox that started under the old ID.
+2. Invite the user to each workspace as a member. Sign in as the user, accept the invitations, and create a personal access token.
+3. Set the token as `MULTICA_TOKEN` and a new UUID as `MULTICA_DAEMON_ID`. The variable change restarts the dispatcher.
+4. Within the idle grace after that restart, run `railway run --service multica-sandboxes -- npm run register:runtimes`. It boots one sandbox, waits until a runtime with the new daemon ID comes online, and destroys the sandbox. Later than that, the dispatcher can destroy the sandbox as idle before its daemon registers. If the script stops early, the dispatcher destroys the sandbox when the idle grace ends.
+5. As the user, open each workspace's runtimes, check that the new runtime is there, and share it with the owners of the agents that run on it.
+6. As each agent's owner, move the agent to the new runtime, and allow the user to invoke it.
 
 ## GitHub access
 
