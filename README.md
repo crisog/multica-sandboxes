@@ -16,7 +16,7 @@ The dispatcher runs as the `multica-sandboxes` service in the Railway project an
 | `MULTICA_TOKEN`              | Multica personal access token of the runtime owner                            |
 | `MULTICA_DAEMON_ID`          | Fixed UUID, so every sandbox registers as the same Multica runtime            |
 | `CLAUDE_CODE_OAUTH_TOKEN`    | Output of `claude setup-token` for the Claude subscription that pays for runs |
-| `RAILWAY_API_TOKEN`          | Railway token that can create and destroy sandboxes in the environment        |
+| `RAILWAY_API_TOKEN`          | Railway account or workspace token, not a project token                       |
 | `SANDBOX_IDLE_GRACE_SECONDS` | Optional. How long an idle sandbox stays up for follow-up runs. Default `300` |
 
 Railway sets `RAILWAY_ENVIRONMENT_ID` for the service. Each sandbox receives `MULTICA_SERVER_URL`, `MULTICA_TOKEN`, and `CLAUDE_CODE_OAUTH_TOKEN` as Railway references, which Railway resolves when the sandbox starts.
