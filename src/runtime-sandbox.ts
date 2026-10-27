@@ -31,19 +31,17 @@ type RuntimeSandboxParams = {
 
 export type BootedSandbox = {
   sandboxId: string;
+  region: string;
   sessionName: string;
-  templateMs: number;
   createMs: number;
 };
 
 export async function bootRuntimeSandbox({ config, daemonId }: RuntimeSandboxParams): Promise<BootedSandbox> {
-  const templateStartedAt = performance.now();
-  const template = await multicaRuntimeTemplate().build({ ...config, region: REGION });
-  const templateMs = Math.round(performance.now() - templateStartedAt);
-
   const createStartedAt = performance.now();
-  const sandbox = await Sandbox.create(template, {
+  // Sandbox.create builds the template in the region it is given, so the build and the sandbox share it.
+  const sandbox = await Sandbox.create(multicaRuntimeTemplate(), {
     ...config,
+    region: REGION,
     idleTimeoutMinutes: SANDBOX_IDLE_TIMEOUT_MINUTES,
     env: SANDBOX_ENV
   });
@@ -51,7 +49,7 @@ export async function bootRuntimeSandbox({ config, daemonId }: RuntimeSandboxPar
 
   try {
     const sessionName = await sandbox.exec(startDaemonCommand(daemonId)).detach();
-    return { sandboxId: sandbox.id, sessionName, templateMs, createMs };
+    return { sandboxId: sandbox.id, region: sandbox.region, sessionName, createMs };
   } catch (error) {
     await sandbox.destroy();
     throw error;
