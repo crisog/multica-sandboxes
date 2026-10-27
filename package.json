@@ -28,6 +28,7 @@
     "prepare": "husky",
     "start": "node src/dispatcher.ts",
     "build:checkpoint": "node src/build-runtime-checkpoint.ts",
+    "register:runtimes": "node src/register-runtimes.ts",
     "test": "node --test 'src/**/*.test.ts'",
     "typecheck": "tsrs --noEmit",
     "lint": "oxlint --deny-warnings",
