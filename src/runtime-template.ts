@@ -16,6 +16,18 @@ const INSTALL_MULTICA_CLI = [
   'install -m 0755 multica /usr/local/bin/multica'
 ].join(' && ');
 
+// The daemon registers a runtime for each agent CLI it finds on PATH or through `$SHELL -ilc`.
+// The base image ships these CLIs besides Claude, and only Claude has credentials in the sandbox.
+const UNUSED_AGENT_CLIS = 'codex cursor-agent grok opencode pi';
+
+const REMOVE_UNUSED_AGENT_CLIS = `for cli in ${UNUSED_AGENT_CLIS}; do for path in "$(command -v "$cli")" "$(bash -ilc "command -v $cli" 2>/dev/null)"; do if [ -n "$path" ]; then rm -f "$path"; fi; done; done`;
+
+const REQUIRE_NO_UNUSED_AGENT_CLIS = `for cli in ${UNUSED_AGENT_CLIS}; do if command -v "$cli" || bash -ilc "command -v $cli" 2>/dev/null; then exit 1; fi; done`;
+
 export function multicaRuntimeTemplate(): SandboxTemplate {
-  return Sandbox.template().run(INSTALL_MULTICA_CLI).run('multica version && claude --version');
+  return Sandbox.template()
+    .run(INSTALL_MULTICA_CLI)
+    .run(REMOVE_UNUSED_AGENT_CLIS)
+    .run(REQUIRE_NO_UNUSED_AGENT_CLIS)
+    .run('multica version && claude --version');
 }
