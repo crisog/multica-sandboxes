@@ -41,6 +41,24 @@ railway run --service multica-sandboxes -- npm start
 
 `railway run` gives the process the service's variables. Stop the deployed dispatcher first. Two dispatchers can each boot a sandbox, and a second daemon fails the runs of the first.
 
+## Sandbox image
+
+Every sandbox boots from the `multica-runtime` checkpoint in the Railway environment. The checkpoint holds the template from `src/runtime-template.ts` and the [agent profile](https://github.com/crisog/agent-profile) at one release tag:
+
+- The profile's `AGENTS.md` as `~/.claude/CLAUDE.md`, so every run loads the agent guidelines
+- The `agent-workflows` plugin with its skills, guard hooks, and subagents
+- `claude-opus-5-5` as the default model. A model set on a Multica agent takes precedence.
+
+The checkpoint holds no credentials. Each sandbox receives them when it boots.
+
+Rebuild the checkpoint after a new `agent-workflows` release or a change to `src/runtime-template.ts`. Run the build from a machine with an agent-profile checkout that has the release tag:
+
+```bash
+railway run --service multica-sandboxes -- npm run build:checkpoint -- ~/Code/Personal/agent-profile agent-workflows-v7.7.0
+```
+
+The build boots a sandbox from the template, installs the profile, and checks the result. It saves the checkpoint only when every check passes. The new checkpoint replaces the old one, and the next sandbox boots from it.
+
 ## GitHub access
 
 Agents clone repositories, push branches, and open pull requests as the agent GitHub App. The App is private to `lucrise-llc`, has no webhook, and has these repository permissions:

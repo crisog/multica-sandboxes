@@ -4,9 +4,10 @@ This file is for coding agents. `README.md` is for people operating the service.
 
 ## Project
 
-multica-sandboxes runs a Multica agent runtime in a Railway sandbox only while Multica has work for it. The dispatcher in `src/dispatcher.ts` polls Multica, boots a sandbox from the template in `src/runtime-template.ts` when runs are waiting, and destroys it after an idle grace. The sandbox runs `multica daemon start` under a fixed `MULTICA_DAEMON_ID`, so every sandbox registers as the same Multica runtime.
+multica-sandboxes runs a Multica agent runtime in a Railway sandbox only while Multica has work for it. The dispatcher in `src/dispatcher.ts` polls Multica, boots a sandbox from the `multica-runtime` checkpoint when runs are waiting, and destroys it after an idle grace. `npm run build:checkpoint` saves that checkpoint from the template in `src/runtime-template.ts` plus the agent profile. The sandbox runs `multica daemon start` under a fixed `MULTICA_DAEMON_ID`, so every sandbox registers as the same Multica runtime.
 
 - Keep at most one runtime sandbox running. A starting daemon fails every in-flight run on its runtimes, so a second sandbox kills the runs of the first.
+- A merged change to `src/runtime-template.ts` reaches sandboxes only after someone rebuilds the checkpoint. Say so in the PR description.
 - Keep lifecycle policy in the pure `decide` function in `src/lifecycle.ts`, and add a failing case to its tests before you change it.
 - Drive sandboxes with the `railway` SDK. Pass long-lived credentials into a sandbox as Railway variable references in its `env`, never as values, so they never pass through this process.
 - The GitHub installation token is the one secret the dispatcher writes into a sandbox. The dispatcher mints it from the GitHub App key it holds, so the key never enters the sandbox and the sandbox holds only a token that expires within the hour. Write it through the sandbox file API. Never put a secret in an exec command, because Railway records every exec command in the sandbox sessions.
