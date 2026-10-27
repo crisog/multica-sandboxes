@@ -17,9 +17,13 @@ The dispatcher runs as the `multica-sandboxes` service in the Railway project an
 | `MULTICA_DAEMON_ID`          | Fixed UUID, so every sandbox registers as the same Multica runtime            |
 | `CLAUDE_CODE_OAUTH_TOKEN`    | Output of `claude setup-token` for the Claude subscription that pays for runs |
 | `RAILWAY_API_TOKEN`          | Railway account or workspace token, not a project token                       |
+| `GITHUB_APP_ID`              | ID of the agent GitHub App                                                    |
+| `GITHUB_APP_PRIVATE_KEY`     | Private key of the agent GitHub App, in PEM format                            |
+| `GITHUB_BOT_NAME`            | `<app-slug>[bot]`, the git name of agent commits                              |
+| `GITHUB_BOT_EMAIL`           | `<bot-user-id>+<app-slug>[bot]@users.noreply.github.com`                      |
 | `SANDBOX_IDLE_GRACE_SECONDS` | Optional. How long an idle sandbox stays up for follow-up runs. Default `300` |
 
-Railway sets `RAILWAY_ENVIRONMENT_ID` for the service. Each sandbox receives `MULTICA_SERVER_URL`, `MULTICA_TOKEN`, and `CLAUDE_CODE_OAUTH_TOKEN` as Railway references, which Railway resolves when the sandbox starts.
+Railway sets `RAILWAY_ENVIRONMENT_ID` for the service. Each sandbox receives `MULTICA_SERVER_URL`, `MULTICA_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, and the bot name and email as Railway references, which Railway resolves when the sandbox starts.
 
 Set each token from your own terminal so its value never reaches a chat transcript or shell history:
 
@@ -36,6 +40,20 @@ railway run --service multica-sandboxes -- npm start
 ```
 
 `railway run` gives the process the service's variables. Stop the deployed dispatcher first. Two dispatchers can each boot a sandbox, and a second daemon fails the runs of the first.
+
+## GitHub access
+
+Agents clone repositories, push branches, and open pull requests as the agent GitHub App. The App is private to `lucrise-llc`, has no webhook, and has these repository permissions:
+
+| Permission    | Access       |
+| ------------- | ------------ |
+| Contents      | Read & write |
+| Pull requests | Read & write |
+| Metadata      | Read         |
+
+Install the App once on the organization, and select only the repositories that agents may change. The dispatcher needs exactly one installation.
+
+The App key stays in the dispatcher. At each boot the dispatcher mints an installation token, which expires after an hour, and writes it to `/run/multica-github/token` in the sandbox. It replaces the token while 30 minutes of its life remain. A git credential helper and a `gh` wrapper in the sandbox read the file on every call.
 
 ## Behavior
 

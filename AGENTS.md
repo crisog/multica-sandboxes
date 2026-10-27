@@ -8,7 +8,8 @@ multica-sandboxes runs a Multica agent runtime in a Railway sandbox only while M
 
 - Keep at most one runtime sandbox running. A starting daemon fails every in-flight run on its runtimes, so a second sandbox kills the runs of the first.
 - Keep lifecycle policy in the pure `decide` function in `src/lifecycle.ts`, and add a failing case to its tests before you change it.
-- Drive sandboxes with the `railway` SDK. Pass credentials into a sandbox as Railway variable references in its `env`, never as values, so secrets never pass through this process.
+- Drive sandboxes with the `railway` SDK. Pass long-lived credentials into a sandbox as Railway variable references in its `env`, never as values, so they never pass through this process.
+- The GitHub installation token is the one secret the dispatcher writes into a sandbox. The dispatcher mints it from the GitHub App key it holds, so the key never enters the sandbox and the sandbox holds only a token that expires within the hour. Write it through the sandbox file API. Never put a secret in an exec command, because Railway records every exec command in the sandbox sessions.
 - Node runs the TypeScript in `src` directly through its built-in type stripping, so there is no build step and no `dist`.
 
 ## Environment

@@ -2,7 +2,7 @@ import { Sandbox } from 'railway';
 
 import type { RuntimeSandbox } from './lifecycle.ts';
 
-import { multicaRuntimeTemplate } from './runtime-template.ts';
+import { GITHUB_TOKEN_PATH, multicaRuntimeTemplate } from './runtime-template.ts';
 
 const REGION = 'us-east4-eqdc4a';
 // Railway destroys a sandbox when no exec session keeps it alive, so a sandbox whose daemon exited does not outlive the timeout.
@@ -17,6 +17,11 @@ const SANDBOX_ENV = {
   MULTICA_SERVER_URL: '${{multica-sandboxes.MULTICA_SERVER_URL}}',
   MULTICA_TOKEN: '${{multica-sandboxes.MULTICA_TOKEN}}',
   CLAUDE_CODE_OAUTH_TOKEN: '${{multica-sandboxes.CLAUDE_CODE_OAUTH_TOKEN}}',
+  // Commits carry the GitHub App's bot identity, so GitHub attributes them to the app.
+  GIT_AUTHOR_NAME: '${{multica-sandboxes.GITHUB_BOT_NAME}}',
+  GIT_AUTHOR_EMAIL: '${{multica-sandboxes.GITHUB_BOT_EMAIL}}',
+  GIT_COMMITTER_NAME: '${{multica-sandboxes.GITHUB_BOT_NAME}}',
+  GIT_COMMITTER_EMAIL: '${{multica-sandboxes.GITHUB_BOT_EMAIL}}',
   // The sandbox runs as root, and Claude Code allows bypassPermissions under root only inside a declared sandbox.
   IS_SANDBOX: '1'
 };
@@ -38,7 +43,15 @@ export type BootedSandbox = {
   createMs: number;
 };
 
-export async function bootRuntimeSandbox({ config, daemonId }: RuntimeSandboxParams): Promise<BootedSandbox> {
+type BootRuntimeSandboxParams = RuntimeSandboxParams & {
+  githubToken: string;
+};
+
+export async function bootRuntimeSandbox({
+  config,
+  daemonId,
+  githubToken
+}: BootRuntimeSandboxParams): Promise<BootedSandbox> {
   const createStartedAt = performance.now();
   // Sandbox.create builds the template in the region it is given, so the build and the sandbox share it.
   const sandbox = await Sandbox.create(multicaRuntimeTemplate(), {
@@ -51,6 +64,8 @@ export async function bootRuntimeSandbox({ config, daemonId }: RuntimeSandboxPar
   const createMs = Math.round(performance.now() - createStartedAt);
 
   try {
+    // The daemon clones the workspace repositories when it starts, so the token has to be in place first.
+    await putGithubToken({ sandbox, token: githubToken });
     const sessionName = await startDaemon({ sandbox, daemonId });
     return { sandboxId: sandbox.id, region: sandbox.region, sessionName, createMs };
   } catch (error) {
@@ -144,6 +159,30 @@ type DestroyRuntimeSandboxParams = {
 export async function destroyRuntimeSandbox({ config, sandboxId }: DestroyRuntimeSandboxParams): Promise<void> {
   const sandbox = await Sandbox.connect(sandboxId, { ...config, fetch: fetchWithDeadline });
   await sandbox.destroy();
+}
+
+type WriteGithubTokenParams = {
+  config: RailwayConfig;
+  sandboxId: string;
+  token: string;
+};
+
+export async function writeGithubToken({ config, sandboxId, token }: WriteGithubTokenParams): Promise<void> {
+  const sandbox = await Sandbox.connect(sandboxId, { ...config, fetch: fetchWithDeadline });
+  await putGithubToken({ sandbox, token });
+}
+
+type PutGithubTokenParams = {
+  sandbox: Sandbox;
+  token: string;
+};
+
+// The token goes through the file API, never a command line, because Railway records every exec command in the sandbox sessions.
+// The rename replaces the file in one step, so git and gh never read a partial token.
+async function putGithubToken({ sandbox, token }: PutGithubTokenParams): Promise<void> {
+  const nextPath = `${GITHUB_TOKEN_PATH}.next`;
+  await sandbox.files.write(nextPath, token);
+  await sandbox.files.rename(nextPath, GITHUB_TOKEN_PATH);
 }
 
 // The SDK bounds its readiness polls but no single request. A sandbox keeps this fetch for its sessions, exec, and destroy calls.
