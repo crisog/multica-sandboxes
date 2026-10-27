@@ -27,6 +27,7 @@
   "scripts": {
     "prepare": "husky",
     "start": "node src/dispatcher.ts",
+    "build:checkpoint": "node src/build-runtime-checkpoint.ts",
     "test": "node --test 'src/**/*.test.ts'",
     "typecheck": "tsrs --noEmit",
     "lint": "oxlint --deny-warnings",
