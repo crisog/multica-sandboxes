@@ -2,6 +2,9 @@ import type { SandboxTemplate } from 'railway';
 
 import { Sandbox } from 'railway';
 
+// `npm run build:checkpoint` saves this template with the agent profile under this name, and the dispatcher boots every sandbox from it.
+export const RUNTIME_CHECKPOINT = 'multica-runtime';
+
 const MULTICA_VERSION = '0.7.0';
 const MULTICA_ARCHIVE = 'multica_linux_amd64.tar.gz';
 const MULTICA_RELEASE_URL = `https://github.com/multica-ai/multica/releases/download/v${MULTICA_VERSION}`;
