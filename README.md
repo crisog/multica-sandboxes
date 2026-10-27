@@ -48,6 +48,7 @@ Every sandbox boots from the `multica-runtime` checkpoint in the Railway environ
 - The profile's `AGENTS.md` as `~/.claude/CLAUDE.md`, so every run loads the agent guidelines
 - The `agent-workflows` plugin with its skills, guard hooks, and subagents
 - `claude-opus-5-5` as the default model. A model set on a Multica agent takes precedence.
+- Empty Claude Code attribution, so agent commits and pull requests carry no Claude footer or co-author trailer
 
 The checkpoint holds no credentials. Each sandbox receives them when it boots.
 

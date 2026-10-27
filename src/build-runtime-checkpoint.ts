@@ -74,7 +74,8 @@ function installAgentProfile(): string {
     `claude plugin install ${PLUGIN_ID}`,
     `ln -sfn ${PROFILE_DIR}/AGENTS.md "$HOME/.claude/CLAUDE.md"`,
     // Multica passes --model only when an agent sets one, so this is the model of every other run.
-    `jq '.model = "${DEFAULT_MODEL}"' "$HOME/.claude/settings.json" > "$HOME/.claude/settings.json.next"`,
+    // Empty attribution drops Claude Code's PR footer and co-author trailer, as the profile's git rules require.
+    `jq '.model = "${DEFAULT_MODEL}" | .attribution = {commit: "", pr: ""}' "$HOME/.claude/settings.json" > "$HOME/.claude/settings.json.next"`,
     `mv "$HOME/.claude/settings.json.next" "$HOME/.claude/settings.json"`
   ].join(' && ');
 }
@@ -85,7 +86,7 @@ function requireAgentProfile(): string {
     `test "$(git -C ${PROFILE_DIR} rev-parse HEAD)" = ${commit}`,
     `test "$(readlink "$HOME/.claude/CLAUDE.md")" = ${PROFILE_DIR}/AGENTS.md`,
     `claude plugin list --json | jq -e 'any(.[]; .id == "${PLUGIN_ID}" and .enabled)'`,
-    `jq -e '.model == "${DEFAULT_MODEL}"' "$HOME/.claude/settings.json"`,
+    `jq -e '.model == "${DEFAULT_MODEL}" and .attribution == {commit: "", pr: ""}' "$HOME/.claude/settings.json"`,
     `bash ${PROFILE_DIR}/plugins/agent-workflows/hooks/instruction-fingerprint.sh | grep -E 'instruction-fingerprint: agent-profile@[0-9a-f]+ agent-workflows@'`
   ].join(' && ');
 }
