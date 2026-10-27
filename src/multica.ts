@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
-// A deferred run waits for a future wakeup, so only these statuses need a running daemon.
+// ceiling: a deferred retry also needs a running daemon to promote it, but the snapshot lists only wakeup retries, so no deferred run counts. A retry armed while the daemon runs is due within seconds, inside the idle grace. Debt — count deferred retries once Multica lists every one.
 const ACTIVE_RUN_STATUSES = new Set(['queued', 'dispatched', 'running', 'waiting_local_directory']);
 
 const workspacesSchema = z.array(z.object({ id: z.string() }));
