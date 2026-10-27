@@ -2,9 +2,8 @@ import { Sandbox } from 'railway';
 
 import type { RuntimeSandbox } from './lifecycle.ts';
 
-import { GITHUB_TOKEN_PATH, multicaRuntimeTemplate } from './runtime-template.ts';
+import { GITHUB_TOKEN_PATH, RUNTIME_CHECKPOINT } from './runtime-template.ts';
 
-const REGION = 'us-east4-eqdc4a';
 // Railway destroys a sandbox when no exec session keeps it alive, so a sandbox whose daemon exited does not outlive the timeout.
 const SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
 // One page holds every sandbox an environment can run: https://docs.railway.com/sandboxes#sandboxes-per-environment
@@ -53,11 +52,10 @@ export async function bootRuntimeSandbox({
   githubToken
 }: BootRuntimeSandboxParams): Promise<BootedSandbox> {
   const createStartedAt = performance.now();
-  // Sandbox.create builds the template in the region it is given, so the build and the sandbox share it.
-  const sandbox = await Sandbox.create(multicaRuntimeTemplate(), {
+  // A checkpoint boots in the region where it was saved, and Railway rejects any other region.
+  const sandbox = await Sandbox.create(RUNTIME_CHECKPOINT, {
     ...config,
     fetch: fetchWithDeadline,
-    region: REGION,
     idleTimeoutMinutes: SANDBOX_IDLE_TIMEOUT_MINUTES,
     env: SANDBOX_ENV
   });
