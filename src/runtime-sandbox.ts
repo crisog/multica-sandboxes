@@ -19,7 +19,8 @@ const SANDBOX_MEMORY_GB = 16;
 const MAX_CONCURRENT_RUNS = 1;
 // Pressure stall lines carry cumulative totals, so they still show memory starvation after the sandbox recovers.
 const MEMORY_REPORT_COMMAND = 'free -m; cat /proc/pressure/memory';
-const MEMORY_REPORT_TIMEOUT_SECONDS = 10;
+// The SDK starts timeoutSec only after the command is sent, so a signal bounds the connection as well.
+const MEMORY_REPORT_TIMEOUT_MS = 10_000;
 
 // Resolved by Railway when the sandbox is created, so secret values never pass through this process.
 const SANDBOX_ENV = {
@@ -167,7 +168,7 @@ export async function describeRuntimeSandbox({
   const sandbox = await Sandbox.connect(sandboxId, { ...config, fetch: fetchWithDeadline });
   const session = await findDaemonSession({ sandbox, daemonCommand: daemonCommandFor(daemonId) });
   const report = await sandbox.exec(MEMORY_REPORT_COMMAND, {
-    timeoutSec: MEMORY_REPORT_TIMEOUT_SECONDS,
+    signal: AbortSignal.timeout(MEMORY_REPORT_TIMEOUT_MS),
     ephemeral: true
   });
 
