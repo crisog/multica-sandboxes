@@ -24,10 +24,44 @@ const REMOVE_UNUSED_AGENT_CLIS = `for cli in ${UNUSED_AGENT_CLIS}; do for path i
 
 const REQUIRE_NO_UNUSED_AGENT_CLIS = `for cli in ${UNUSED_AGENT_CLIS}; do if command -v "$cli" || bash -ilc "command -v $cli" 2>/dev/null; then exit 1; fi; done`;
 
+// The dispatcher writes the GitHub App installation token here and replaces it before it expires.
+// git and gh read the file on every call, so a replaced token takes effect at once.
+export const GITHUB_TOKEN_PATH = '/run/multica-github/token';
+
+const GIT_CREDENTIAL_HELPER = `#!/bin/sh
+test "$1" = get || exit 0
+printf 'username=x-access-token\\npassword=%s\\n' "$(cat ${GITHUB_TOKEN_PATH})"
+`;
+
+// It shadows /usr/bin/gh on PATH, because gh reads GH_TOKEN only when it starts.
+const GH_WRAPPER = `#!/bin/sh
+export GH_TOKEN="$(cat ${GITHUB_TOKEN_PATH})"
+exec /usr/bin/gh "$@"
+`;
+
+// base64 carries the scripts through the build shell without a second layer of quoting.
+function installExecutable(path: string, content: string): string {
+  return `printf %s ${Buffer.from(content).toString('base64')} | base64 -d > ${path} && chmod 0755 ${path}`;
+}
+
+const INSTALL_GITHUB_AUTH = [
+  installExecutable('/usr/local/bin/git-credential-multica-github', GIT_CREDENTIAL_HELPER),
+  installExecutable('/usr/local/bin/gh', GH_WRAPPER),
+  'git config --system credential.https://github.com.helper multica-github'
+].join(' && ');
+
+const REQUIRE_GITHUB_AUTH = [
+  'test "$(command -v gh)" = /usr/local/bin/gh',
+  'test "$(bash -ilc "command -v gh")" = /usr/local/bin/gh',
+  'test "$(git config --system credential.https://github.com.helper)" = multica-github'
+].join(' && ');
+
 export function multicaRuntimeTemplate(): SandboxTemplate {
   return Sandbox.template()
     .run(INSTALL_MULTICA_CLI)
     .run(REMOVE_UNUSED_AGENT_CLIS)
     .run(REQUIRE_NO_UNUSED_AGENT_CLIS)
+    .run(INSTALL_GITHUB_AUTH)
+    .run(REQUIRE_GITHUB_AUTH)
     .run('multica version && claude --version');
 }
