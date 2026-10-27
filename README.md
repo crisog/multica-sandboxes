@@ -72,6 +72,8 @@ Agents clone repositories, push branches, and open pull requests as the agent Gi
 
 Install the App once on the organization, and select only the repositories that agents may change. The dispatcher needs exactly one installation.
 
+Never select a repository whose default branch the App can update and a pipeline deploys with credentials that agents must not reach. This repository is one: Railway deploys every push to `main`, and the dispatcher holds the Railway token and the App key. Select such a repository only after its default branch requires a review or a status check that the App cannot give.
+
 The App key stays in the dispatcher. At each boot the dispatcher mints an installation token, which expires after an hour, and writes it to `/run/multica-github/token` in the sandbox. It replaces the token while 30 minutes of its life remain. A git credential helper and a `gh` wrapper in the sandbox read the file on every call.
 
 ## Behavior
