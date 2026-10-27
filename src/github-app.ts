@@ -8,6 +8,12 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // GitHub rejects an app JWT that lives longer than 10 minutes. Backdating iat absorbs clock drift.
 const JWT_LIFETIME_SECONDS = 540;
 const JWT_BACKDATE_SECONDS = 60;
+// Tokens get exactly these permissions, so a permission later added to the App does not reach agents.
+const TOKEN_PERMISSIONS = {
+  contents: 'write',
+  pull_requests: 'write',
+  metadata: 'read'
+};
 
 const installationsSchema = z.array(z.object({ id: z.number() }));
 
@@ -39,7 +45,12 @@ export async function createInstallationToken(config: GithubAppConfig): Promise<
     );
   }
   const created = installationTokenSchema.parse(
-    await githubRequest({ jwt, method: 'POST', path: `/app/installations/${installation.id}/access_tokens` })
+    await githubRequest({
+      jwt,
+      method: 'POST',
+      path: `/app/installations/${installation.id}/access_tokens`,
+      body: { permissions: TOKEN_PERMISSIONS }
+    })
   );
   return { token: created.token, expiresAtMs: Date.parse(created.expires_at) };
 }
@@ -64,10 +75,11 @@ type GithubRequestParams = {
   jwt: string;
   method: 'GET' | 'POST';
   path: string;
+  body?: object;
 };
 
-async function githubRequest({ jwt, method, path }: GithubRequestParams): Promise<unknown> {
-  const response = await fetch(new URL(path, GITHUB_API_URL), {
+async function githubRequest({ jwt, method, path, body }: GithubRequestParams): Promise<unknown> {
+  const init: RequestInit = {
     method,
     headers: {
       Accept: 'application/vnd.github+json',
@@ -76,7 +88,11 @@ async function githubRequest({ jwt, method, path }: GithubRequestParams): Promis
       'X-GitHub-Api-Version': '2022-11-28'
     },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-  });
+  };
+  if (body !== undefined) {
+    init.body = JSON.stringify(body);
+  }
+  const response = await fetch(new URL(path, GITHUB_API_URL), init);
   if (!response.ok) {
     throw new Error(`GitHub ${method} ${path} returned HTTP ${response.status}`);
   }
