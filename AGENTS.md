@@ -4,8 +4,10 @@ This file is for coding agents. `README.md` is for people operating the service.
 
 ## Project
 
-multica-sandboxes runs Multica agent runtimes in Railway sandboxes. A sandbox boots from the template in `src/runtime-template.ts`, logs the Multica CLI in, and runs `multica daemon start` under a fixed `MULTICA_DAEMON_ID`, so every sandbox registers as the same Multica runtime.
+multica-sandboxes runs a Multica agent runtime in a Railway sandbox only while Multica has work for it. The dispatcher in `src/dispatcher.ts` polls Multica, boots a sandbox from the template in `src/runtime-template.ts` when runs are waiting, and destroys it after an idle grace. The sandbox runs `multica daemon start` under a fixed `MULTICA_DAEMON_ID`, so every sandbox registers as the same Multica runtime.
 
+- Keep at most one runtime sandbox running. A starting daemon fails every in-flight run on its runtimes, so a second sandbox kills the runs of the first.
+- Keep lifecycle policy in the pure `decide` function in `src/lifecycle.ts`, and add a failing case to its tests before you change it.
 - Drive sandboxes with the `railway` SDK. Pass credentials into a sandbox as Railway variable references in its `env`, never as values, so secrets never pass through this process.
 - Node runs the TypeScript in `src` directly through its built-in type stripping, so there is no build step and no `dist`.
 
