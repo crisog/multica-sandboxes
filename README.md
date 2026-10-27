@@ -4,7 +4,7 @@ Runs a [Multica](https://projects.lucrise.com) agent runtime in a Railway sandbo
 
 The dispatcher checks Multica every 10 seconds. When the sandbox runtime has unfinished runs, it boots a sandbox that runs the Multica daemon, and the daemon executes the runs with Claude Code. When no runs are left for the idle grace, the dispatcher destroys the sandbox.
 
-At most one sandbox runs at a time. Runs that arrive together share it, each in its own working directory.
+At most one sandbox runs at a time, and its daemon executes one run at a time. Runs that arrive together wait in the Multica queue and run in turn.
 
 ## Configuration
 
@@ -52,6 +52,8 @@ Every sandbox boots from the `multica-runtime` checkpoint in the Railway environ
 
 The checkpoint holds no credentials. Each sandbox receives them when it boots.
 
+Each sandbox gets the plan's default vCPUs and a 16 GB memory ceiling. Railway bills the memory a sandbox uses, not its ceiling. A run that tests rapidotickets starts a PostgreSQL container for each test shard, and two such runs together exhausted the 8 GB default.
+
 Rebuild the checkpoint after a new `agent-workflows` release or a change to `src/runtime-template.ts`. Run the build from a machine with an agent-profile checkout that has the release tag:
 
 ```bash
@@ -96,7 +98,8 @@ The App key stays in the dispatcher. At each boot the dispatcher mints an instal
 ## Behavior
 
 - A sandbox belongs to the dispatcher only when one of its sessions started `multica daemon start` with the configured daemon ID. The dispatcher leaves other sandboxes in the environment alone.
-- When the runtime stays offline for 3 minutes, the dispatcher replaces the sandbox. Multica marks a runtime offline after 150 seconds without a heartbeat, so a crashed daemon is replaced about 5 minutes after it stops. The new daemon fails the runs that the old one left unfinished, and Multica retries them.
+- When the runtime stays offline for 3 minutes, the dispatcher replaces the sandbox. Multica marks a runtime offline after 150 seconds without a heartbeat, so a crashed daemon is replaced about 5 minutes after it stops. The new daemon fails the runs that the old one left unfinished, and Multica retries each run once. Runs still waiting in the queue stay queued, and the new daemon runs them.
+- Before it destroys an unhealthy sandbox, the dispatcher logs `unhealthy sandbox` with the daemon session's exit and the sandbox's memory report. An exit code of `-1` means a signal killed the daemon.
 - When the daemon exits, Railway destroys its sandbox after 10 idle minutes, even if the dispatcher is down.
 - A restart adopts the running sandbox, and the idle grace and the offline timeout start again.
 - The dispatcher counts only runs of the agents that the token owner can see. Runs of Multica's agent builder do not count, so they neither start a sandbox nor keep one running. Do not select this runtime for the agent builder.

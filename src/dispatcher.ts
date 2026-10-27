@@ -10,6 +10,7 @@ import { readRuntimeWork } from './multica.ts';
 import { createInstallationToken } from './github-app.ts';
 import {
   bootRuntimeSandbox,
+  describeRuntimeSandbox,
   destroyRuntimeSandbox,
   listRuntimeSandboxes,
   writeGithubToken
@@ -107,6 +108,9 @@ async function act(decision: Decision): Promise<void> {
     }
     case 'destroy': {
       for (const sandboxId of decision.sandboxIds) {
+        if (decision.reason === 'unhealthy') {
+          await logUnhealthySandbox(sandboxId);
+        }
         await destroyRuntimeSandbox({ config: runtimeSandbox.config, sandboxId });
         logger.info({ sandboxId, reason: decision.reason }, 'sandbox destroyed');
       }
@@ -116,6 +120,16 @@ async function act(decision: Decision): Promise<void> {
       const unhandled: never = decision;
       throw new Error(`Unhandled decision ${JSON.stringify(unhandled)}`);
     }
+  }
+}
+
+// An unhealthy sandbox may not answer, and the description must not keep it alive, so a failed read is logged and the replacement goes ahead.
+async function logUnhealthySandbox(sandboxId: string): Promise<void> {
+  try {
+    const health = await describeRuntimeSandbox({ ...runtimeSandbox, sandboxId });
+    logger.warn({ sandboxId, ...health }, 'unhealthy sandbox');
+  } catch (error) {
+    logger.warn({ sandboxId, err: error }, 'unhealthy sandbox not described');
   }
 }
 

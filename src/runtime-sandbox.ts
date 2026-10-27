@@ -1,3 +1,5 @@
+import type { SandboxSessionInfo } from 'railway';
+
 import { Sandbox } from 'railway';
 
 import type { RuntimeSandbox } from './lifecycle.ts';
@@ -10,6 +12,15 @@ const SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
 const SANDBOX_LIST_PAGE_SIZE = 100;
 const RAILWAY_REQUEST_TIMEOUT_MS = 30_000;
 const DAEMON_START_TIMEOUT_MS = 30_000;
+// The size is a ceiling, and Railway bills the memory in use: https://docs.railway.com/sandboxes#sandbox-size
+// Two concurrent rapidotickets runs exhausted the 8 GB default.
+const SANDBOX_MEMORY_GB = 16;
+// Runs share the sandbox's memory, so the daemon runs one at a time and later runs wait in the Multica queue.
+const MAX_CONCURRENT_RUNS = 1;
+// Pressure stall lines carry cumulative totals, so they still show memory starvation after the sandbox recovers.
+const MEMORY_REPORT_COMMAND = 'free -m; cat /proc/pressure/memory';
+// The SDK starts timeoutSec only after the command is sent, so a signal bounds the connection as well.
+const MEMORY_REPORT_TIMEOUT_MS = 10_000;
 
 // Resolved by Railway when the sandbox is created, so secret values never pass through this process.
 const SANDBOX_ENV = {
@@ -57,6 +68,7 @@ export async function bootRuntimeSandbox({
     ...config,
     fetch: fetchWithDeadline,
     idleTimeoutMinutes: SANDBOX_IDLE_TIMEOUT_MINUTES,
+    resources: { memoryGB: SANDBOX_MEMORY_GB },
     env: SANDBOX_ENV
   });
   const createMs = Math.round(performance.now() - createStartedAt);
@@ -110,29 +122,61 @@ export async function listRuntimeSandboxes({ config, daemonId }: RuntimeSandboxP
       continue;
     }
     const sandbox = await Sandbox.connect(info.id, { ...config, fetch: fetchWithDeadline });
-    if (await hasDaemonSession({ sandbox, daemonCommand })) {
+    if ((await findDaemonSession({ sandbox, daemonCommand })) !== null) {
       runtimeSandboxes.push({ id: info.id, createdAtMs: Date.parse(info.createdAt) });
     }
   }
   return runtimeSandboxes;
 }
 
-type HasDaemonSessionParams = {
+type FindDaemonSessionParams = {
   sandbox: Sandbox;
   daemonCommand: string;
 };
 
-async function hasDaemonSession({ sandbox, daemonCommand }: HasDaemonSessionParams): Promise<boolean> {
+async function findDaemonSession({
+  sandbox,
+  daemonCommand
+}: FindDaemonSessionParams): Promise<SandboxSessionInfo | null> {
   const sessions = await sandbox.sessions();
   if (sessions === null) {
     throw new Error(`Sandbox ${sandbox.id} did not report its sessions, so its owner is unknown`);
   }
   for (const session of sessions) {
     if (session.kind === 'EXEC' && session.command.includes(daemonCommand)) {
-      return true;
+      return session;
     }
   }
-  return false;
+  return null;
+}
+
+export type SandboxHealth = {
+  daemonSession: Pick<SandboxSessionInfo, 'running' | 'exitCode' | 'exitedAt'> | null;
+  memoryReport: string;
+};
+
+type DescribeRuntimeSandboxParams = RuntimeSandboxParams & {
+  sandboxId: string;
+};
+
+// The daemon session's exit tells a killed daemon from a stalled one, and the memory report tells whether memory ran out.
+export async function describeRuntimeSandbox({
+  config,
+  daemonId,
+  sandboxId
+}: DescribeRuntimeSandboxParams): Promise<SandboxHealth> {
+  const sandbox = await Sandbox.connect(sandboxId, { ...config, fetch: fetchWithDeadline });
+  const session = await findDaemonSession({ sandbox, daemonCommand: daemonCommandFor(daemonId) });
+  const report = await sandbox.exec(MEMORY_REPORT_COMMAND, {
+    signal: AbortSignal.timeout(MEMORY_REPORT_TIMEOUT_MS),
+    ephemeral: true
+  });
+
+  let daemonSession: SandboxHealth['daemonSession'] = null;
+  if (session !== null) {
+    daemonSession = { running: session.running, exitCode: session.exitCode, exitedAt: session.exitedAt };
+  }
+  return { daemonSession, memoryReport: report.stdout };
 }
 
 // The daemon ID in the command marks the session, so the dispatcher can recognize its own sandboxes.
@@ -145,7 +189,7 @@ function startDaemonCommand(daemonId: string): string {
   return [
     'multica config set server_url "$MULTICA_SERVER_URL"',
     'printf "%s\\n" "$MULTICA_TOKEN" | multica login --token',
-    `exec ${daemonCommandFor(daemonId)} --foreground`
+    `exec ${daemonCommandFor(daemonId)} --foreground --max-concurrent-tasks ${MAX_CONCURRENT_RUNS}`
   ].join(' && ');
 }
 
