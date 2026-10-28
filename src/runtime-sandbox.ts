@@ -12,8 +12,9 @@ const SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
 const SANDBOX_LIST_PAGE_SIZE = 100;
 const RAILWAY_REQUEST_TIMEOUT_MS = 30_000;
 const DAEMON_START_TIMEOUT_MS = 30_000;
-// The size is a ceiling, and Railway bills the memory in use: https://docs.railway.com/sandboxes#sandbox-size
-// Two concurrent rapidotickets runs exhausted the 8 GB default.
+// The size is a ceiling, and Railway bills the CPU and memory in use: https://docs.railway.com/sandboxes#sandbox-size
+// Two concurrent rapidotickets runs exhausted the 8 GB default, and the rapidotickets backend tests took 21% less time on 16 vCPUs than on 8.
+const SANDBOX_CPU = 16;
 const SANDBOX_MEMORY_GB = 16;
 // Runs share the sandbox's memory, so the daemon runs one at a time and later runs wait in the Multica queue.
 const MAX_CONCURRENT_RUNS = 1;
@@ -68,7 +69,7 @@ export async function bootRuntimeSandbox({
     ...config,
     fetch: fetchWithDeadline,
     idleTimeoutMinutes: SANDBOX_IDLE_TIMEOUT_MINUTES,
-    resources: { memoryGB: SANDBOX_MEMORY_GB },
+    resources: { cpu: SANDBOX_CPU, memoryGB: SANDBOX_MEMORY_GB },
     env: SANDBOX_ENV
   });
   const createMs = Math.round(performance.now() - createStartedAt);
