@@ -82,7 +82,7 @@ export async function bootRuntimeSandbox({
   try {
     // The daemon clones the workspace repositories when it starts, so the tokens have to be in place first.
     await putGithubToken({ sandbox, path: GITHUB_TOKEN_PATH, token: githubToken });
-    // The upload token goes to a file instead of the sandbox env, so agents attach files through the gh wrapper and never handle the token.
+    // The upload token goes to a file instead of the sandbox env, so the gh wrapper decides when gh uses it.
     await putGithubToken({ sandbox, path: GITHUB_UPLOAD_TOKEN_PATH, token: githubUploadToken });
     const sessionName = await startDaemon({ sandbox, daemonId });
     return { sandboxId: sandbox.id, region: sandbox.region, sessionName, createMs };
