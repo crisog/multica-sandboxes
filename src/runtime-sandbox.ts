@@ -34,7 +34,10 @@ const SANDBOX_ENV = {
   GIT_COMMITTER_NAME: '${{multica-sandboxes.GITHUB_BOT_NAME}}',
   GIT_COMMITTER_EMAIL: '${{multica-sandboxes.GITHUB_BOT_EMAIL}}',
   // The sandbox runs as root, and Claude Code allows bypassPermissions under root only inside a declared sandbox.
-  IS_SANDBOX: '1'
+  IS_SANDBOX: '1',
+  // A Multica run ends when the agent's turn ends, so a call the agent sends to the background never returns to it.
+  // The agent profile's wait guard reads this variable and allows the agent to wait in the foreground.
+  AGENT_FOREGROUND_ONLY: '1'
 };
 
 type RailwayConfig = {
