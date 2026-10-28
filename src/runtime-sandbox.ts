@@ -33,6 +33,8 @@ const SANDBOX_ENV = {
   GIT_AUTHOR_EMAIL: '${{multica-sandboxes.GITHUB_BOT_EMAIL}}',
   GIT_COMMITTER_NAME: '${{multica-sandboxes.GITHUB_BOT_NAME}}',
   GIT_COMMITTER_EMAIL: '${{multica-sandboxes.GITHUB_BOT_EMAIL}}',
+  // GitHub refuses image uploads from App tokens, so agents attach screenshots with this personal access token.
+  GITHUB_UPLOAD_TOKEN: '${{multica-sandboxes.GITHUB_UPLOAD_TOKEN}}',
   // The sandbox runs as root, and Claude Code allows bypassPermissions under root only inside a declared sandbox.
   IS_SANDBOX: '1',
   // A Multica run ends when the agent's turn ends, so a call the agent sends to the background never returns to it.
