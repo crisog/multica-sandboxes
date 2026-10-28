@@ -9,10 +9,13 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const JWT_LIFETIME_SECONDS = 540;
 const JWT_BACKDATE_SECONDS = 60;
 // Tokens get exactly these permissions, so a permission later added to the App does not reach agents.
+// Agents read checks and statuses to wait for a pull request's review. Status writes stay with people, who sign off.
 const TOKEN_PERMISSIONS = {
   contents: 'write',
   pull_requests: 'write',
-  metadata: 'read'
+  metadata: 'read',
+  checks: 'read',
+  statuses: 'read'
 };
 
 const installationsSchema = z.array(z.object({ id: z.number() }));
