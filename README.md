@@ -54,6 +54,8 @@ The template adds the Docker Compose plugin and a global Playwright install with
 
 The checkpoint holds no credentials. Each sandbox receives them when it boots.
 
+Each sandbox also sets `AGENT_FOREGROUND_ONLY=1`. A Multica run ends when the agent's turn ends, so a call the agent sends to the background never returns to it. With the variable set, the profile's wait guard allows the agent to wait in the foreground, for example for a pull request's review.
+
 Each sandbox has a ceiling of 16 vCPUs and 16 GB of memory. Railway bills the CPU and memory a sandbox uses, not its ceiling. A run that tests rapidotickets starts a PostgreSQL container for each test shard. Two such runs together exhausted the 8 GB default. The rapidotickets backend tests took 287 seconds on 8 vCPUs and 228 seconds on 16.
 
 Rebuild the checkpoint after a new `agent-workflows` release or a change to `src/runtime-template.ts`. Run the build from a machine with an agent-profile checkout that has the release tag:
