@@ -52,7 +52,7 @@ Every sandbox boots from the `multica-runtime` checkpoint in the Railway environ
 
 The checkpoint holds no credentials. Each sandbox receives them when it boots.
 
-Each sandbox gets the plan's default vCPUs and a 16 GB memory ceiling. Railway bills the memory a sandbox uses, not its ceiling. A run that tests rapidotickets starts a PostgreSQL container for each test shard, and two such runs together exhausted the 8 GB default.
+Each sandbox has a ceiling of 16 vCPUs and 16 GB of memory. Railway bills the CPU and memory a sandbox uses, not its ceiling. A run that tests rapidotickets starts a PostgreSQL container for each test shard. Two such runs together exhausted the 8 GB default. The rapidotickets backend tests took 287 seconds on 8 vCPUs and 228 seconds on 16.
 
 Rebuild the checkpoint after a new `agent-workflows` release or a change to `src/runtime-template.ts`. Run the build from a machine with an agent-profile checkout that has the release tag:
 
