@@ -4,7 +4,7 @@ import { Sandbox } from 'railway';
 
 import type { RuntimeSandbox } from './lifecycle.ts';
 
-import { GITHUB_TOKEN_PATH, RUNTIME_CHECKPOINT } from './runtime-template.ts';
+import { GITHUB_TOKEN_PATH, GITHUB_UPLOAD_TOKEN_PATH, RUNTIME_CHECKPOINT } from './runtime-template.ts';
 
 // Railway destroys a sandbox when no exec session keeps it alive, so a sandbox whose daemon exited does not outlive the timeout.
 const SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
@@ -33,8 +33,6 @@ const SANDBOX_ENV = {
   GIT_AUTHOR_EMAIL: '${{multica-sandboxes.GITHUB_BOT_EMAIL}}',
   GIT_COMMITTER_NAME: '${{multica-sandboxes.GITHUB_BOT_NAME}}',
   GIT_COMMITTER_EMAIL: '${{multica-sandboxes.GITHUB_BOT_EMAIL}}',
-  // GitHub refuses image uploads from App tokens, so agents attach screenshots with this personal access token.
-  GITHUB_UPLOAD_TOKEN: '${{multica-sandboxes.GITHUB_UPLOAD_TOKEN}}',
   // The sandbox runs as root, and Claude Code allows bypassPermissions under root only inside a declared sandbox.
   IS_SANDBOX: '1',
   // A Multica run ends when the agent's turn ends, so a call the agent sends to the background never returns to it.
@@ -61,12 +59,14 @@ export type BootedSandbox = {
 
 type BootRuntimeSandboxParams = RuntimeSandboxParams & {
   githubToken: string;
+  githubUploadToken: string;
 };
 
 export async function bootRuntimeSandbox({
   config,
   daemonId,
-  githubToken
+  githubToken,
+  githubUploadToken
 }: BootRuntimeSandboxParams): Promise<BootedSandbox> {
   const createStartedAt = performance.now();
   // A checkpoint boots in the region where it was saved, and Railway rejects any other region.
@@ -80,8 +80,10 @@ export async function bootRuntimeSandbox({
   const createMs = Math.round(performance.now() - createStartedAt);
 
   try {
-    // The daemon clones the workspace repositories when it starts, so the token has to be in place first.
-    await putGithubToken({ sandbox, token: githubToken });
+    // The daemon clones the workspace repositories when it starts, so the tokens have to be in place first.
+    await putGithubToken({ sandbox, path: GITHUB_TOKEN_PATH, token: githubToken });
+    // The upload token goes to a file instead of the sandbox env, so agents attach files through the gh wrapper and never handle the token.
+    await putGithubToken({ sandbox, path: GITHUB_UPLOAD_TOKEN_PATH, token: githubUploadToken });
     const sessionName = await startDaemon({ sandbox, daemonId });
     return { sandboxId: sandbox.id, region: sandbox.region, sessionName, createMs };
   } catch (error) {
@@ -217,20 +219,21 @@ type WriteGithubTokenParams = {
 
 export async function writeGithubToken({ config, sandboxId, token }: WriteGithubTokenParams): Promise<void> {
   const sandbox = await Sandbox.connect(sandboxId, { ...config, fetch: fetchWithDeadline });
-  await putGithubToken({ sandbox, token });
+  await putGithubToken({ sandbox, path: GITHUB_TOKEN_PATH, token });
 }
 
 type PutGithubTokenParams = {
   sandbox: Sandbox;
+  path: string;
   token: string;
 };
 
 // The token goes through the file API, never a command line, because Railway records every exec command in the sandbox sessions.
 // The rename replaces the file in one step, so git and gh never read a partial token.
-async function putGithubToken({ sandbox, token }: PutGithubTokenParams): Promise<void> {
-  const nextPath = `${GITHUB_TOKEN_PATH}.next`;
+async function putGithubToken({ sandbox, path, token }: PutGithubTokenParams): Promise<void> {
+  const nextPath = `${path}.next`;
   await sandbox.files.write(nextPath, token);
-  await sandbox.files.rename(nextPath, GITHUB_TOKEN_PATH);
+  await sandbox.files.rename(nextPath, path);
 }
 
 // The SDK bounds its readiness polls but no single request. A sandbox keeps this fetch for its sessions, exec, and destroy calls.

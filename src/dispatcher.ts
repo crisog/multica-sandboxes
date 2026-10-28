@@ -30,6 +30,7 @@ const environmentSchema = z.object({
   MULTICA_DAEMON_ID: z.uuid(),
   GITHUB_APP_ID: z.coerce.number().int().positive(),
   GITHUB_APP_PRIVATE_KEY: z.string().min(1),
+  GITHUB_UPLOAD_TOKEN: z.string().min(1),
   SANDBOX_IDLE_GRACE_SECONDS: z.coerce.number().int().positive().default(300)
 });
 
@@ -98,7 +99,11 @@ async function act(decision: Decision): Promise<void> {
     }
     case 'boot': {
       const githubToken = await createInstallationToken(githubApp);
-      const booted = await bootRuntimeSandbox({ ...runtimeSandbox, githubToken: githubToken.token });
+      const booted = await bootRuntimeSandbox({
+        ...runtimeSandbox,
+        githubToken: githubToken.token,
+        githubUploadToken: environment.GITHUB_UPLOAD_TOKEN
+      });
       githubTokenRefresh = {
         sandboxId: booted.sandboxId,
         dueAtMs: githubToken.expiresAtMs - GITHUB_TOKEN_REFRESH_MARGIN_MS
