@@ -21,10 +21,10 @@ The dispatcher runs as the `multica-sandboxes` service in the Railway project an
 | `GITHUB_APP_PRIVATE_KEY`     | Private key of the agent GitHub App, in PEM format                            |
 | `GITHUB_BOT_NAME`            | `<app-slug>[bot]`, the git name of agent commits                              |
 | `GITHUB_BOT_EMAIL`           | `<bot-user-id>+<app-slug>[bot]@users.noreply.github.com`                      |
-| `GITHUB_UPLOAD_TOKEN`        | Fine-grained personal access token that agents use for `gh --attach`          |
+| `GITHUB_UPLOAD_TOKEN`        | Fine-grained personal access token that the `gh` wrapper uses for `--attach`  |
 | `SANDBOX_IDLE_GRACE_SECONDS` | Optional. How long an idle sandbox stays up for follow-up runs. Default `300` |
 
-Railway sets `RAILWAY_ENVIRONMENT_ID` for the service. Each sandbox receives `MULTICA_SERVER_URL`, `MULTICA_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `GITHUB_UPLOAD_TOKEN`, and the bot name and email as Railway references, which Railway resolves when the sandbox starts.
+Railway sets `RAILWAY_ENVIRONMENT_ID` for the service. Each sandbox receives `MULTICA_SERVER_URL`, `MULTICA_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, and the bot name and email as Railway references, which Railway resolves when the sandbox starts. The dispatcher writes the two GitHub tokens to files in the sandbox, as GitHub access describes.
 
 Set each token from your own terminal so its value never reaches a chat transcript or shell history:
 
@@ -94,13 +94,15 @@ Agents clone repositories, push branches, and open pull requests as the agent Gi
 | Pull requests   | Read & write |
 | Metadata        | Read         |
 | Checks          | Read         |
-| Commit statuses | Read         |
+| Commit statuses | Read & write |
 
 Install the App once on the organization, and select only the repositories that agents may change. The dispatcher needs exactly one installation.
 
-Never select a repository whose default branch the App can update and a pipeline deploys with credentials that agents must not reach. This repository is one: Railway deploys every push to `main`, and the dispatcher holds the Railway token and the App key. Select such a repository only after its default branch requires a status check that neither the App nor `GITHUB_UPLOAD_TOKEN` can post, with no bypass. A required review does not protect it, because the upload token can approve a pull request as its owner.
+Select a repository only when a merge or push to its default branch runs no pipeline with credentials that agents must not reach, or when its default branch has a rule, with no bypass, that neither the App nor the upload token's owner can satisfy. Agents post the `signoff` status after their checks pass, so a branch that requires only `signoff` does not keep an agent out: the agent can post the status and then merge its own pull request with the App token, and only its instruction stops it. One required approval does not keep it out either, because an agent can read the upload token and approve as the token's owner. A required status check that must come from a named app does keep it out, and so do two or more required approvals, because the token's owner gives at most one. Never select this repository: Railway deploys every push to `main`, and the dispatcher holds the Railway token and the App key.
 
-GitHub refuses image uploads from App tokens, so agents attach screenshots to pull requests with `GITHUB_UPLOAD_TOKEN`. It is a fine-grained personal access token for the repositories agents work on, with read and write access to contents and pull requests and no access to commit statuses, actions, or workflows. Every agent can read it and act as its owner within that access, so the agent instruction limits it to `gh --attach`. The same rule holds for its repositories as for the App's. It does not renew: replace it before it expires.
+GitHub refuses image uploads from App tokens, so the `gh` wrapper attaches screenshots with `GITHUB_UPLOAD_TOKEN`. It is a fine-grained personal access token for the repositories agents work on, with read and write access to contents and pull requests and no access to commit statuses, actions, or workflows. The same rule holds for its repositories as for the App's. It does not renew: replace it before it expires. The dispatcher writes it to `/run/multica-github/upload-token` when it boots a sandbox, so a running sandbox keeps the token it booted with.
+
+Agents attach files with the plain `gh pr edit <number> --attach <file>`, optionally with `--body-file` and `--repo`. The wrapper chooses the token. It uses the upload token only for that form, refuses any other `pr edit` call with `--attach`, and uses the App token for every other call. Agents run as root, so an agent can still read the token file and act as the token's owner within its access. The wrapper limits what `gh` does with the token, not what an agent can do.
 
 The App key stays in the dispatcher. At each boot the dispatcher mints an installation token, which expires after an hour, and writes it to `/run/multica-github/token` in the sandbox. It replaces the token while 30 minutes of its life remain. A git credential helper and a `gh` wrapper in the sandbox read the file on every call.
 

@@ -18,7 +18,8 @@ const environmentSchema = z.object({
   MULTICA_TOKEN: z.string().min(1),
   MULTICA_DAEMON_ID: z.uuid(),
   GITHUB_APP_ID: z.coerce.number().int().positive(),
-  GITHUB_APP_PRIVATE_KEY: z.string().min(1)
+  GITHUB_APP_PRIVATE_KEY: z.string().min(1),
+  GITHUB_UPLOAD_TOKEN: z.string().min(1)
 });
 
 const logger = pino();
@@ -47,7 +48,11 @@ const githubToken = await createInstallationToken({
   appId: environment.GITHUB_APP_ID,
   privateKey: createPrivateKey(environment.GITHUB_APP_PRIVATE_KEY)
 });
-const booted = await bootRuntimeSandbox({ ...runtimeSandbox, githubToken: githubToken.token });
+const booted = await bootRuntimeSandbox({
+  ...runtimeSandbox,
+  githubToken: githubToken.token,
+  githubUploadToken: environment.GITHUB_UPLOAD_TOKEN
+});
 logger.info({ sandboxId: booted.sandboxId, createMs: booted.createMs }, 'sandbox booted');
 try {
   await waitForRuntimeOnline();
