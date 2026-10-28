@@ -88,11 +88,13 @@ Multica refuses to register a daemon ID whose runtimes another user owns, so a n
 
 Agents clone repositories, push branches, and open pull requests as the agent GitHub App. The App is private to `lucrise-llc`, has no webhook, and has these repository permissions:
 
-| Permission    | Access       |
-| ------------- | ------------ |
-| Contents      | Read & write |
-| Pull requests | Read & write |
-| Metadata      | Read         |
+| Permission      | Access       |
+| --------------- | ------------ |
+| Contents        | Read & write |
+| Pull requests   | Read & write |
+| Metadata        | Read         |
+| Checks          | Read         |
+| Commit statuses | Read         |
 
 Install the App once on the organization, and select only the repositories that agents may change. The dispatcher needs exactly one installation.
 
