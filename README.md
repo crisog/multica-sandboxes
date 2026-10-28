@@ -94,11 +94,11 @@ Agents clone repositories, push branches, and open pull requests as the agent Gi
 | Pull requests   | Read & write |
 | Metadata        | Read         |
 | Checks          | Read         |
-| Commit statuses | Read         |
+| Commit statuses | Read & write |
 
 Install the App once on the organization, and select only the repositories that agents may change. The dispatcher needs exactly one installation.
 
-Never select a repository whose default branch the App can update and a pipeline deploys with credentials that agents must not reach. This repository is one: Railway deploys every push to `main`, and the dispatcher holds the Railway token and the App key. Select such a repository only after its default branch requires a status check that neither the App nor `GITHUB_UPLOAD_TOKEN` can post, with no bypass. A required review does not protect it, because the upload token can approve a pull request as its owner.
+Select a repository only when a merge or push to its default branch runs no pipeline with credentials that agents must not reach. No branch rule keeps an agent from that branch. Agents post the `signoff` status after their checks pass, so an agent can post the status that a branch requires and then merge its own pull request with the App token. Only its instruction stops it. A required review does not stop it either, because an agent can read the upload token and approve as the token's owner. This repository never qualifies: Railway deploys every push to `main`, and the dispatcher holds the Railway token and the App key.
 
 GitHub refuses image uploads from App tokens, so agents attach screenshots to pull requests with `GITHUB_UPLOAD_TOKEN`. It is a fine-grained personal access token for the repositories agents work on, with read and write access to contents and pull requests and no access to commit statuses, actions, or workflows. Every agent can read it and act as its owner within that access, so the agent instruction limits it to `gh --attach`. The same rule holds for its repositories as for the App's. It does not renew: replace it before it expires.
 
