@@ -40,7 +40,11 @@ const INSTALL_PLAYWRIGHT = [
   'playwright install --with-deps chromium'
 ].join(' && ');
 
-const REQUIRE_PLAYWRIGHT = `NODE_PATH="$(npm root --global)" node -e "require('playwright').chromium.launch().then((browser) => browser.close())"`;
+const REQUIRE_PLAYWRIGHT = [
+  'cd "$(mktemp -d)"',
+  'npm link playwright',
+  `node --input-type=module -e "import { chromium } from 'playwright'; const browser = await chromium.launch(); await browser.close();"`
+].join(' && ');
 
 // The daemon registers a runtime for each agent CLI it finds on PATH or through `$SHELL -ilc`.
 // The base image ships these CLIs besides Claude, and only Claude has credentials in the sandbox.
