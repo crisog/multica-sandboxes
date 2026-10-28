@@ -50,6 +50,8 @@ Every sandbox boots from the `multica-runtime` checkpoint in the Railway environ
 - `claude-opus-5-5` as the default model. A model set on a Multica agent takes precedence.
 - Empty Claude Code attribution, so agent commits and pull requests carry no Claude footer or co-author trailer
 
+The template adds the Docker Compose plugin and a global Playwright install with Chromium, so agents can start a repository's local services and screenshot its UI. A script imports Playwright after `npm link playwright` in its directory.
+
 The checkpoint holds no credentials. Each sandbox receives them when it boots.
 
 Each sandbox has a ceiling of 16 vCPUs and 16 GB of memory. Railway bills the CPU and memory a sandbox uses, not its ceiling. A run that tests rapidotickets starts a PostgreSQL container for each test shard. Two such runs together exhausted the 8 GB default. The rapidotickets backend tests took 287 seconds on 8 vCPUs and 228 seconds on 16.

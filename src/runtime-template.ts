@@ -19,6 +19,29 @@ const INSTALL_MULTICA_CLI = [
   'install -m 0755 multica /usr/local/bin/multica'
 ].join(' && ');
 
+const DOCKER_COMPOSE_VERSION = '5.6.0';
+const DOCKER_COMPOSE_BINARY = 'docker-compose-linux-x86_64';
+const DOCKER_COMPOSE_URL = `https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/${DOCKER_COMPOSE_BINARY}`;
+
+// The base image has the Docker engine but not the Compose plugin, which repositories use to start their local services.
+const INSTALL_DOCKER_COMPOSE = [
+  'cd "$(mktemp -d)"',
+  `curl -fsSL -O ${DOCKER_COMPOSE_URL} -O ${DOCKER_COMPOSE_URL}.sha256`,
+  `sha256sum -c ${DOCKER_COMPOSE_BINARY}.sha256`,
+  `install -D -m 0755 ${DOCKER_COMPOSE_BINARY} /usr/local/lib/docker/cli-plugins/docker-compose`
+].join(' && ');
+
+const PLAYWRIGHT_VERSION = '1.64.0';
+
+// Agents screenshot the apps they change. A script imports this global install after `npm link playwright`,
+// so it uses the Chromium and system libraries already in the image.
+const INSTALL_PLAYWRIGHT = [
+  `npm install --global playwright@${PLAYWRIGHT_VERSION}`,
+  'playwright install --with-deps chromium'
+].join(' && ');
+
+const REQUIRE_PLAYWRIGHT = `NODE_PATH="$(npm root --global)" node -e "require('playwright').chromium.launch().then((browser) => browser.close())"`;
+
 // The daemon registers a runtime for each agent CLI it finds on PATH or through `$SHELL -ilc`.
 // The base image ships these CLIs besides Claude, and only Claude has credentials in the sandbox.
 const UNUSED_AGENT_CLIS = 'codex cursor-agent grok opencode pi';
@@ -66,5 +89,8 @@ export function multicaRuntimeTemplate(): SandboxTemplate {
     .run(REQUIRE_NO_UNUSED_AGENT_CLIS)
     .run(INSTALL_GITHUB_AUTH)
     .run(REQUIRE_GITHUB_AUTH)
-    .run('multica version && claude --version');
+    .run(INSTALL_DOCKER_COMPOSE)
+    .run(INSTALL_PLAYWRIGHT)
+    .run(REQUIRE_PLAYWRIGHT)
+    .run('multica version && claude --version && docker compose version');
 }
